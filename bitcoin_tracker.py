@@ -22,34 +22,46 @@ def load_transactions_from_file(file_path):
         data = json.load(file)
     return data['transactions']
 
-# Function to calculate total balance and profit
-def calculate_balance(transactions):
-    total_invested = 0
-    total_btc = 0
-    profit = 0
+# Function to calculate total balance and real profit
+def calculate_balance(transactions, current_btc_price):
+    total_btc_held = 0  # Total BTC still held
+    total_invested = 0  # Total USD spent on remaining Bitcoin
+    realized_profit = 0  # Profit from sold Bitcoin
 
     for transaction in transactions:
-        type_ = transaction['type']
         usd_value = transaction['value_in_usd']
         btc_quantity = transaction['quantity_in_btc']
-        if type_ == "buy":
-            total_invested += usd_value * btc_quantity
-            total_btc += btc_quantity
-        elif type_ == "sell":
-            total_invested -= usd_value * btc_quantity
-            profit += usd_value * btc_quantity
+        btc_price_at_transaction = transaction['btc_price_at_transaction']
 
-    return total_btc, total_invested, profit
+        if transaction['type'] == "buy":
+            # Add to total BTC held and total invested
+            total_btc_held += btc_quantity
+            total_invested += usd_value
+        elif transaction['type'] == "sell":
+            # Calculate the average cost per BTC held (cost basis)
+            cost_basis_per_btc = total_invested / total_btc_held
 
-# Function to calculate gain/loss percentage
-def calculate_gain_percentage(current_value, total_invested, total_btc):
-    total_current_value = current_value * total_btc
-    gain = total_current_value - total_invested
-    gain_percentage = (gain / total_invested) * 100 if total_invested > 0 else 0
-    return gain_percentage, gain
+            # Calculate the cost of the BTC being sold
+            cost_basis_of_sold_btc = cost_basis_per_btc * btc_quantity
+            
+            # Calculate the realized profit: (Sell price - Cost basis) * quantity sold
+            realized_profit += (btc_price_at_transaction * btc_quantity) - cost_basis_of_sold_btc
+            
+            # Adjust total BTC held and total invested after selling
+            total_btc_held -= btc_quantity
+            total_invested -= cost_basis_of_sold_btc  # Subtract the cost of the sold BTC
+
+    # Value of Bitcoin still held at the current price
+    current_value_of_btc_held = total_btc_held * current_btc_price
+
+    # Real profit is the sum of realized profit and the unrealized profit from BTC still held
+    unrealized_profit = current_value_of_btc_held - total_invested
+    real_profit = realized_profit + unrealized_profit
+
+    return total_btc_held, total_invested, real_profit
 
 # Function to display data in a formatted table
-def display_data(current_usd_value, total_btc, gain_percentage, profit_usd, last_update_diff, hour_diff):
+def display_data(current_usd_value, total_btc_held, real_profit, total_invested, last_update_diff, hour_diff):
     # Clear the terminal before displaying new updates
     os.system('cls' if os.name == 'nt' else 'clear')
 
@@ -61,8 +73,8 @@ def display_data(current_usd_value, total_btc, gain_percentage, profit_usd, last
 
     # Add price and balance data
     table.add_row("Current BTC Price (USD)", f"${current_usd_value:.2f}")
-    table.add_row("Total BTC", f"{total_btc:.4f}")
-    table.add_row("Total Balance (USD)", f"${current_usd_value * total_btc:.2f}")
+    table.add_row("Total BTC Held", f"{total_btc_held:.8f}")
+    table.add_row("Total Balance (USD)", f"${current_usd_value * total_btc_held:.2f}")
 
     # Display the difference from the last update and from the last hour
     table.add_row("", "")
@@ -73,11 +85,11 @@ def display_data(current_usd_value, total_btc, gain_percentage, profit_usd, last
     table.add_row("", "")
 
     # Apply green for positive values and red for negative values
-    color = "green" if gain_percentage >= 0 else "red"
+    color = "green" if real_profit >= 0 else "red"
 
-    # Columns highlighting profit
-    table.add_row(f"[bold {color}]Gain/Loss Percentage[/bold {color}]", f"[bold {color}]{gain_percentage:.2f}%[/bold {color}]")
-    table.add_row(f"[bold {color}]Profit (USD)[/bold {color}]", f"[bold {color}]${profit_usd:.2f}[/bold {color}]")
+    # Columns highlighting real profit and total invested
+    table.add_row(f"[bold {color}]Real Profit (USD)[/bold {color}]", f"[bold {color}]${real_profit:.2f}[/bold {color}]")
+    table.add_row(f"[bold cyan]Total Invested (USD)[/bold cyan]", f"[bold cyan]${total_invested:.2f}[/bold cyan]")
 
     console.print(table)
 
@@ -101,18 +113,17 @@ def monitor_bitcoin_binance(transactions, interval=30):
         last_update_value = current_usd_value
 
         # Calculate the difference from the last hour (60 updates)
-        if len(usd_price_history) >= 60:
-            one_hour_ago_value = usd_price_history[-60]
+        if len(usd_price_history) >= 120:
+            one_hour_ago_value = usd_price_history[-120]
         else:
             one_hour_ago_value = usd_price_history[0]  # Use the initial value if there haven't been 60 updates yet
 
         hour_diff = current_usd_value - one_hour_ago_value
 
-        total_btc, total_invested, profit = calculate_balance(transactions)
-        gain_percentage, profit_usd = calculate_gain_percentage(current_usd_value, total_invested, total_btc)
+        total_btc_held, total_invested, real_profit = calculate_balance(transactions, current_usd_value)
 
         # Display the data with the differences
-        display_data(current_usd_value, total_btc, gain_percentage, profit_usd, last_update_diff, hour_diff)
+        display_data(current_usd_value, total_btc_held, real_profit, total_invested, last_update_diff, hour_diff)
 
         # Countdown to the next update using `rich` Progress
         with Progress(
