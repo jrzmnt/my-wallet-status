@@ -33,25 +33,28 @@ pip install -r requirements.txt
 You need to set up your transactions in the `transactions.json` file. **Remember that all transaction data is for testing and demonstration purposes only.**
 
 Here is an example of the JSON file format:
-```
+```json
 {
-  "transactions": [
-    {
-      "type": "buy",
-      "value_in_usd": 30000,
-      "quantity_in_btc": 0.1
-    },
-    {
-      "type": "sell",
-      "value_in_usd": 35000,
-      "quantity_in_btc": 0.05
-    },
-    {
-      "type": "buy",
-      "value_in_usd": 32000,
-      "quantity_in_btc": 0.1
-    }
-  ]
+    "transactions": [
+        {
+            "type": "buy",
+            "value_in_usd": 1000,
+            "quantity_in_btc": 0.016667,
+            "btc_price_at_transaction": 60000.00
+        },
+        {
+            "type": "sell",
+            "value_in_usd": 100,
+            "quantity_in_btc": 0.001667,
+            "btc_price_at_transaction": 60000.00
+        },
+        {
+            "type": "buy",
+            "value_in_usd": 12000,
+            "quantity_in_btc": 0.1846153846,
+            "btc_price_at_transaction": 65000.00
+        }
+    ]
 }
 ```
 
@@ -64,7 +67,7 @@ The application will start reading the Bitcoin price in real-time, calculate the
 
 ## Project Structure
 
-```
+```bash
 ├── bitcoin_tracker.py      # Main application script
 ├── transactions.json       # Transaction configuration file
 ├── README.md               # Project documentation
@@ -87,7 +90,7 @@ pip install -r requirements.txt
 
 When running the application, you'll see output like this:
 
-```
+```bash
 Bitcoin Summary
 Description                        Value
 Current BTC Price (USD)             $34300.45
