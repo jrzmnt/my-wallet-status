@@ -1,0 +1,19 @@
+{
+    "transactions": [
+        {
+            "type": "buy",
+            "value_in_usd": 30000,
+            "quantity_in_btc": 0.1
+        },
+        {
+            "type": "sell",
+            "value_in_usd": 35000,
+            "quantity_in_btc": 0.05
+        },
+        {
+            "type": "buy",
+            "value_in_usd": 32000,
+            "quantity_in_btc": 0.1
+        }
+    ]
+}
