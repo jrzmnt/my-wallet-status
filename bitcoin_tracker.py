@@ -60,8 +60,22 @@ def calculate_balance(transactions, current_btc_price):
 
     return total_btc_held, total_invested, real_profit
 
+# Function to calculate percentage change
+def calculate_percentage_change(current_value, previous_value):
+    if previous_value == 0:
+        return 0
+    percentage_change = ((current_value - previous_value) / previous_value) * 100
+    return percentage_change
+
+# Function to format values with proper sign placement
+def format_currency(value):
+    if value >= 0:
+        return f"${value:.2f}"
+    else:
+        return f"-${abs(value):.2f}"
+
 # Function to display data in a formatted table
-def display_data(current_usd_value, total_btc_held, real_profit, total_invested, last_update_diff, hour_diff):
+def display_data(current_usd_value, total_btc_held, real_profit, total_invested, last_update_diff, hour_diff, last_update_percentage, hour_percentage):
     # Clear the terminal before displaying new updates
     os.system('cls' if os.name == 'nt' else 'clear')
 
@@ -70,26 +84,40 @@ def display_data(current_usd_value, total_btc_held, real_profit, total_invested,
     # Standard columns
     table.add_column("Description", justify="left", style="cyan", no_wrap=True)
     table.add_column("Value", justify="right", style="magenta")
+    table.add_column("Percentage", justify="right", style="green")
 
     # Add price and balance data
-    table.add_row("Current BTC Price (USD)", f"${current_usd_value:.2f}")
-    table.add_row("Total BTC Held", f"{total_btc_held:.8f}")
-    table.add_row("Total Balance (USD)", f"${current_usd_value * total_btc_held:.2f}")
+    table.add_row("Current BTC Price (USD)", format_currency(current_usd_value), "")
+    table.add_row("Total BTC Held", f"{total_btc_held:.8f}", "")
+    table.add_row("Total Balance (USD)", format_currency(current_usd_value * total_btc_held), "")
 
     # Display the difference from the last update and from the last hour
-    table.add_row("", "")
-    table.add_row("[bold cyan]Last Update Difference (USD)[/bold cyan]", f"[bold yellow]${last_update_diff:.2f}[/bold yellow]")
-    table.add_row("[bold cyan]Last Hour Difference (USD)[/bold cyan]", f"[bold yellow]${hour_diff:.2f}[/bold yellow]")
+    table.add_row("", "", "")
+
+    # Color for last update percentage
+    last_update_color = "green" if last_update_percentage >= 0 else "red"
+    last_update_sign = "+" if last_update_percentage >= 0 else "-"
+    table.add_row("[bold cyan]Last Update Difference (USD)[/bold cyan]", f"[bold yellow]{format_currency(last_update_diff)}[/bold yellow]", f"[bold {last_update_color}]{last_update_sign}{abs(last_update_percentage):.2f}%[/bold {last_update_color}]")
+
+    # Color for last hour percentage
+    hour_color = "green" if hour_percentage >= 0 else "red"
+    hour_sign = "+" if hour_percentage >= 0 else "-"
+    table.add_row("[bold cyan]Last Hour Difference (USD)[/bold cyan]", f"[bold yellow]{format_currency(hour_diff)}[/bold yellow]", f"[bold {hour_color}]{hour_sign}{abs(hour_percentage):.2f}%[/bold {hour_color}]")
 
     # Separate sections
-    table.add_row("", "")
+    table.add_row("", "", "")
 
     # Apply green for positive values and red for negative values
-    color = "green" if real_profit >= 0 else "red"
+    real_profit_color = "green" if real_profit >= 0 else "red"
+    real_profit_sign = "+" if real_profit >= 0 else "-"
 
-    # Columns highlighting real profit and total invested
-    table.add_row(f"[bold {color}]Real Profit (USD)[/bold {color}]", f"[bold {color}]${real_profit:.2f}[/bold {color}]")
-    table.add_row(f"[bold cyan]Total Invested (USD)[/bold cyan]", f"[bold cyan]${total_invested:.2f}[/bold cyan]")
+    # Calculate the percentage profit or loss
+    percentage_profit = (real_profit / total_invested) * 100 if total_invested > 0 else 0
+    percentage_profit_sign = "+" if percentage_profit >= 0 else "-"
+
+    # Columns highlighting real profit, total invested, and percentage
+    table.add_row(f"[bold {real_profit_color}]Real Profit (USD)[/bold {real_profit_color}]", f"[bold {real_profit_color}]{real_profit_sign}{format_currency(abs(real_profit))}[/bold {real_profit_color}]", f"[bold {real_profit_color}]{percentage_profit_sign}{abs(percentage_profit):.2f}%[/bold {real_profit_color}]")
+    table.add_row(f"[bold cyan]Total Invested (USD)[/bold cyan]", f"[bold cyan]{format_currency(total_invested)}[/bold cyan]", "")
 
     console.print(table)
 
@@ -107,23 +135,26 @@ def monitor_bitcoin_binance(transactions, interval=30):
         # Calculate the difference from the last update
         if last_update_value is None:
             last_update_diff = 0
+            last_update_percentage = 0
         else:
             last_update_diff = current_usd_value - last_update_value
+            last_update_percentage = calculate_percentage_change(current_usd_value, last_update_value)
 
         last_update_value = current_usd_value
 
-        # Calculate the difference from the last hour (60 updates)
-        if len(usd_price_history) >= 120:
-            one_hour_ago_value = usd_price_history[-120]
+        # Calculate the difference from the last hour (60 updates, assuming ~30 seconds per update)
+        if len(usd_price_history) >= 60:
+            one_hour_ago_value = usd_price_history[-60]
         else:
             one_hour_ago_value = usd_price_history[0]  # Use the initial value if there haven't been 60 updates yet
 
         hour_diff = current_usd_value - one_hour_ago_value
+        hour_percentage = calculate_percentage_change(current_usd_value, one_hour_ago_value)
 
         total_btc_held, total_invested, real_profit = calculate_balance(transactions, current_usd_value)
 
         # Display the data with the differences
-        display_data(current_usd_value, total_btc_held, real_profit, total_invested, last_update_diff, hour_diff)
+        display_data(current_usd_value, total_btc_held, real_profit, total_invested, last_update_diff, hour_diff, last_update_percentage, hour_percentage)
 
         # Countdown to the next update using `rich` Progress
         with Progress(
@@ -141,5 +172,5 @@ def monitor_bitcoin_binance(transactions, interval=30):
 # Load transactions from the JSON file
 transactions = load_transactions_from_file('transactions.json')
 
-# Start monitoring with an interval of 30 seconds
-monitor_bitcoin_binance(transactions, interval=30)
+# Start monitoring with an interval of 60 seconds
+monitor_bitcoin_binance(transactions, interval=60)
